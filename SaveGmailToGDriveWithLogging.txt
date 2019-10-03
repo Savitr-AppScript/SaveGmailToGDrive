@@ -1,0 +1,95 @@
+//This function will get the sheet and update it
+function createSheet(from, subject, date) {
+   //Get active spreadSheet
+   var activeSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+   //Returning sheet with given name, If multiple then return leftmost one
+   var yourNewSheet = activeSpreadsheet.getSheetByName("SaveGmailActivity");
+
+   if (yourNewSheet != null) {
+     //Deletes the sheet
+     //activeSpreadsheet.deleteSheet(yourNewSheet);
+     
+     //Adds data to sheet
+     var _senderName = from;
+     var _subject = subject;
+     var _date = date;
+     yourNewSheet.appendRow([_senderName,_subject,_date]);
+     Logger.log("added");
+     
+   } else {
+    //Create new Sheet
+     yourNewSheet = activeSpreadsheet.insertSheet();
+     yourNewSheet.setName("SaveGmailActivity");
+     yourNewSheet.appendRow(['From','Subject','Date']);
+   }
+}
+
+//This Fnuction will get the email based on the parameter provided
+function save_Gmail_as_PDF(){
+//  var label = GmailApp.search('-in: inbox');
+//  if(label == null){
+//    GmailApp.createLabel('Save As PDF');
+//  }in:sent 
+  //  else{
+    var month = new Date().getMonth();
+    var date = new Date().getDate();
+    var year = new Date().getFullYear();
+
+    var beforeDate= year+"/"+(month+1)+"/"+(date+1);
+    //var beforeDate = "2019/10/1";  
+  var afterDate = year+"/"+(month+1)+"/"+(date-1);
+    var query = "before:" + beforeDate + " after:"+ afterDate + " in:inbox";
+    Logger.log("query = " + query);
+    var threads = GmailApp.search(query);  // For Inbox
+  
+    //var threads = GmailApp.search('is:All Mail'); // For All mails
+    //var threads = GmailApp.search('in:sent'); // For Sent mails
+    for (var i = 0; i < threads.length; i++) {  
+      var messages = threads[i].getMessages();  
+      var message = messages[0];
+      var id = message.getId();
+      Logger.log("id= " +id);
+      var senderAddress = message.getFrom();
+      var messageDate = message.getDate();
+      var body    = message.getBody();
+      var subject = message.getSubject();
+      var attachments  = message.getAttachments();
+      
+      for(var j = 1;j<messages.length;j++){
+        body += messages[j].getBody();
+        var temp_attach = messages[j].getAttachments();
+        if(temp_attach.length>0){
+          for(var k =0;k<temp_attach.length;k++){
+            attachments.push(temp_attach[k]);
+          }
+        }
+      } 
+      // Create an HTML File from the Message Body
+      //var bodydochtml = DocsList.createFile(subject+'.html', body, "text/html")
+      var bodydochtml = DriveApp.createFile(subject+'.html', "From: "+senderAddress + '<br/> Date:' +messageDate +"<br/>Subject: "+ subject+ '<br/><br/>' + '<br/>'+body, "text/html");
+      var bodyId=bodydochtml.getId();
+      
+      //Update the Google Sheet
+      createSheet(senderAddress,subject,messageDate);
+      Logger.log("Sheet Updated");
+      
+      // Convert the HTML to PDF
+      var bodydocpdf = bodydochtml.getAs('application/pdf');
+      if(attachments.length > 0){
+        DriveApp.createFolder(subject);
+        //var folder = DocsList.getFolder(subject);
+        var folder = DriveApp.getFoldersByName(subject).next();
+        for (var j = 0; j < attachments.length; j++) {
+          folder.createFile(attachments[j]);
+          Utilities.sleep(1000);
+        }
+        folder.createFile(bodydocpdf);
+      }
+      else{
+        DriveApp.createFile(bodydocpdf);
+      }      
+      DriveApp.getFileById(bodyId).setTrashed(true);
+      //label.removeFromThread(threads[i]);
+    }
+//  }  
+}
